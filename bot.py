@@ -1,4 +1,5 @@
 import datetime as dt
+import html
 import json
 import os
 from zoneinfo import ZoneInfo
@@ -10,6 +11,7 @@ ICS_URL = os.environ["ICS_URL"]
 TOKEN = os.environ["TG_TOKEN"]
 CHAT_ID = int(os.environ["CHAT_ID"])
 TZ = ZoneInfo("Europe/Madrid")
+MOODLE = "https://www.vidalibarraquer.cat/moodle"
 API = f"https://api.telegram.org/bot{TOKEN}"
 ESTADO = "enviados.json"
 DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
@@ -63,9 +65,43 @@ def fecha(d):
     return f"{DIAS[d.weekday()]} {d:%d/%m %H:%M}"
 
 
+def enlace(e):
+    ts = int(e["ini"].timestamp())
+    return f"{MOODLE}/calendar/view.php?view=day&time={ts}#event_{e['uid'].split('@')[0]}"
+
+
+def falta(td):
+    d, h, m = td.days, td.seconds // 3600, td.seconds % 3600 // 60
+    if d:
+        return f"{d} d {h} h"
+    if h:
+        return f"{h} h {m} min"
+    return f"{m} min"
+
+
+def tarjeta(e):
+    return (
+        f"📌 <b>{html.escape(e['titulo'])}</b>\n"
+        f"📚 {html.escape(e['asig'])}\n"
+        f"🗓 {fecha(e['ini'])}\n"
+        f"🔗 <a href=\"{html.escape(enlace(e))}\">Abrir en Moodle</a>"
+    )
+
+
 def enviar(chat_id, texto):
     try:
-        requests.post(f"{API}/sendMessage", data={"chat_id": chat_id, "text": texto}, timeout=30)
+        r = requests.post(
+            f"{API}/sendMessage",
+            data={
+                "chat_id": chat_id,
+                "text": texto,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            },
+            timeout=30,
+        )
+        if not r.ok:
+            print("Telegram:", r.text)
     except requests.RequestException as e:
         print("Error enviando:", e)
 
@@ -74,15 +110,20 @@ def lista(entregas):
     ahora = dt.datetime.now(TZ)
     futuras = [e for e in entregas if e["ini"] >= ahora]
     if not futuras:
-        return "No tienes entregas pendientes 🎉"
-    lineas = ["📚 Entregas pendientes:\n"]
+        return "🎉 No tienes entregas pendientes"
+    texto = f"📚 <b>Entregas pendientes ({len(futuras)})</b>\n"
     for e in futuras:
-        falta = e["ini"] - ahora
-        lineas.append(
-            f"• {fecha(e['ini'])} (faltan {falta.days}d {falta.seconds // 3600}h)\n"
-            f"  {e['titulo']} [{e['asig']}]"
+        bloque = (
+            f"\n📌 <b>{html.escape(e['titulo'])}</b>\n"
+            f"   {html.escape(e['asig'])}\n"
+            f"   🗓 {fecha(e['ini'])} · ⏳ {falta(e['ini'] - ahora)}\n"
+            f"   🔗 <a href=\"{html.escape(enlace(e))}\">Moodle</a>"
         )
-    return "\n".join(lineas)[:4000]
+        if len(texto) + len(bloque) > 3900:
+            texto += "\n…"
+            break
+        texto += bloque
+    return texto
 
 
 def comprobar(entregas, enviados):
@@ -96,7 +137,7 @@ def comprobar(entregas, enviados):
                 continue
             enviados[clave] = True
             if ahora - t <= dt.timedelta(minutes=60):
-                enviar(CHAT_ID, f"⏰ {ETIQUETAS[k]}\n{e['titulo']} [{e['asig']}]\nVence: {fecha(e['ini'])}")
+                enviar(CHAT_ID, f"⏰ <b>{ETIQUETAS[k]}</b>\n\n{tarjeta(e)}")
 
 
 def main():
