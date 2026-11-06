@@ -82,8 +82,10 @@ def falta(td):
 def tarjeta(e):
     return (
         f"📌 <b>{html.escape(e['titulo'])}</b>\n"
+        f"\n"
         f"📚 {html.escape(e['asig'])}\n"
         f"🗓 {fecha(e['ini'])}\n"
+        f"\n"
         f"🔗 <a href=\"{html.escape(enlace(e))}\">Abrir en Moodle</a>"
     )
 
@@ -114,10 +116,15 @@ def lista(entregas):
     texto = f"📚 <b>Entregas pendientes ({len(futuras)})</b>\n"
     for e in futuras:
         bloque = (
-            f"\n📌 <b>{html.escape(e['titulo'])}</b>\n"
-            f"   {html.escape(e['asig'])}\n"
-            f"   🗓 {fecha(e['ini'])} · ⏳ {falta(e['ini'] - ahora)}\n"
-            f"   🔗 <a href=\"{html.escape(enlace(e))}\">Moodle</a>"
+            f"\n━━━━━━━━━━━━━━\n"
+            f"\n"
+            f"📌 <b>{html.escape(e['titulo'])}</b>\n"
+            f"\n"
+            f"📚 {html.escape(e['asig'])}\n"
+            f"🗓 {fecha(e['ini'])}\n"
+            f"⏳ Faltan {falta(e['ini'] - ahora)}\n"
+            f"\n"
+            f"🔗 <a href=\"{html.escape(enlace(e))}\">Abrir en Moodle</a>\n"
         )
         if len(texto) + len(bloque) > 3900:
             texto += "\n…"
